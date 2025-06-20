@@ -48,6 +48,8 @@ pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
 mkdir -p pokemon_data
 
 # Loop through each Pokémon
+RETRY_LIMIT=3
+
 for name in "${pokemons[@]}"
 do
     echo "Fetching data for $name..."
@@ -55,8 +57,7 @@ do
     success=false
     attempts=0
 
-    while [ $attempts -lt 3 ]; do
-        # Try to fetch data
+    while [ $attempts -lt $RETRY_LIMIT ]; do
         if curl -s -f "https://pokeapi.co/api/v2/pokemon/$name" -o "pokemon_data/${name}.json"; then
             echo "Saved data to pokemon_data/${name}.json ✅"
             success=true
@@ -69,7 +70,7 @@ do
     done
 
     if [ "$success" = false ]; then
-        echo "Failed to fetch data for $name after 3 attempts ❌" >> errors.txt
+        echo "Failed to fetch data for $name after $RETRY_LIMIT attempts ❌" >> errors.txt
     fi
 
     sleep 1  # Rate limit delay
