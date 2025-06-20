@@ -1,31 +1,71 @@
-
 #!/bin/bash
-
 # Directory containing Pokémon JSON files
 DATA_DIR="pokemon_data"
-
 # Output CSV file
 REPORT_FILE="pokemon_report.csv"
+# Error log file
+ERROR_FILE="errors.txt"
 
-# Initialize the CSV with headers
+# Initialize files
 echo "Name,Height (m),Weight (kg)" > "$REPORT_FILE"
+> "$ERROR_FILE"  # Clear error file
+
+# List of Pokémon to fetch
+pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+
+# Output directory for JSON files
+mkdir -p "$DATA_DIR"
+
+# Function to fetch Pokémon data with retries
+fetch_pokemon_data() {
+    local name=$1
+    local attempts=0
+    local max_attempts=3
+    local success=false
+
+    while [ $attempts -lt $max_attempts ]; do
+        echo "Attempt $((attempts+1)) for $name..."
+        if curl -s -f "https://pokeapi.co/api/v2/pokemon/$name" -o "$DATA_DIR/${name}.json"; then
+            echo "Saved data to $DATA_DIR/${name}.json ✅"
+            success=true
+            break
+        else
+            echo "Attempt $((attempts+1)) failed for $name."
+            ((attempts++))
+            sleep 1
+        fi
+    done
+
+    if [ "$success" = false ]; then
+        echo "Failed to fetch data for $name after $max_attempts attempts ❌"
+        echo "$name" >> "$ERROR_FILE"
+        return 1
+    fi
+    return 0
+}
+
+# Fetch data for all Pokémon
+for name in "${pokemons[@]}"; do
+    fetch_pokemon_data "$name"
+    sleep 1  # Rate limit delay
+done
 
 # Process each JSON file
-for file in "$DATA_DIR"/*.json
-do
-    name=$(jq -r '.name' "$file" | sed 's/.*/\u&/')
-    height=$(jq -r '.height' "$file" | awk '{printf "%.1f", $1 / 10}')
-    weight=$(jq -r '.weight' "$file" | awk '{printf "%.1f", $1 / 10}')
-    echo "$name,$height,$weight" >> "$REPORT_FILE"
+for file in "$DATA_DIR"/*.json; do
+    if [ -f "$file" ]; then
+        name=$(jq -r '.name' "$file" | sed 's/.*/\u&/')
+        height=$(jq -r '.height' "$file" | awk '{printf "%.1f", $1 / 10}')
+        weight=$(jq -r '.weight' "$file" | awk '{printf "%.1f", $1 / 10}')
+        echo "$name,$height,$weight" >> "$REPORT_FILE"
+    fi
 done
 
 # Print report location
-echo "CSV Report generated at: $REPORT_FILE"
+echo -e "\nCSV Report generated at: $REPORT_FILE"
 echo ""
 
 # Display the report
 cat "$REPORT_FILE"
-
 echo ""
 
 # Calculate averages using awk
@@ -38,40 +78,13 @@ END {
     if (count > 0) {
         printf "Average Height: %.2f m\n", height_sum / count
         printf "Average Weight: %.2f kg\n", weight_sum / count
+    } else {
+        print "No valid data to calculate averages."
     }
 }' "$REPORT_FILE"
 
-# List of Pokémon to fetch
-pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
-
-# Output directory for JSON files
-mkdir -p pokemon_data
-
-# Loop through each Pokémon
-RETRY_LIMIT=3
-
-for name in "${pokemons[@]}"
-do
-    echo "Fetching data for $name..."
-
-    success=false
-    attempts=0
-
-    while [ $attempts -lt $RETRY_LIMIT ]; do
-        if curl -s -f "https://pokeapi.co/api/v2/pokemon/$name" -o "pokemon_data/${name}.json"; then
-            echo "Saved data to pokemon_data/${name}.json ✅"
-            success=true
-            break
-        else
-            echo "Attempt $((attempts+1)) failed for $name."
-            sleep 1
-            ((attempts++))
-        fi
-    done
-
-    if [ "$success" = false ]; then
-        echo "Failed to fetch data for $name after $RETRY_LIMIT attempts ❌" >> errors.txt
-    fi
-
-    sleep 1  # Rate limit delay
-done
+# Display errors if any
+if [ -s "$ERROR_FILE" ]; then
+    echo -e "\nErrors occurred while fetching the following Pokémon:"
+    cat "$ERROR_FILE"
+fi
