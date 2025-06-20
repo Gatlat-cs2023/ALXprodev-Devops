@@ -1,3 +1,4 @@
+
 #!/bin/bash
 
 # Directory containing Pokémon JSON files
@@ -39,3 +40,37 @@ END {
         printf "Average Weight: %.2f kg\n", weight_sum / count
     }
 }' "$REPORT_FILE"
+
+# List of Pokémon to fetch
+pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+
+# Output directory for JSON files
+mkdir -p pokemon_data
+
+# Loop through each Pokémon
+for name in "${pokemons[@]}"
+do
+    echo "Fetching data for $name..."
+
+    success=false
+    attempts=0
+
+    while [ $attempts -lt 3 ]; do
+        # Try to fetch data
+        if curl -s -f "https://pokeapi.co/api/v2/pokemon/$name" -o "pokemon_data/${name}.json"; then
+            echo "Saved data to pokemon_data/${name}.json ✅"
+            success=true
+            break
+        else
+            echo "Attempt $((attempts+1)) failed for $name."
+            sleep 1
+            ((attempts++))
+        fi
+    done
+
+    if [ "$success" = false ]; then
+        echo "Failed to fetch data for $name after 3 attempts ❌" >> errors.txt
+    fi
+
+    sleep 1  # Rate limit delay
+done
