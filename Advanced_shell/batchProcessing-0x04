@@ -51,18 +51,32 @@ for name in "${pokemons[@]}"; do
     sleep 0.1  # Small delay to avoid rate limiting
 done
 
-# Monitor and wait for all background jobs to complete
-echo -e "\nMonitoring background jobs..."
-while true; do
-    # Check running jobs
+# Wait for all background processes with timeout safeguard
+echo -e "\nWaiting for background processes to complete..."
+TIMEOUT=30  # seconds
+end_time=$((SECONDS + TIMEOUT))
+
+# Initial check
+job_count=$(jobs -rp | wc -l)
+[ "$job_count" -gt 0 ] && echo "Active jobs: $job_count"
+
+# Wait loop with timeout
+while [ $SECONDS -lt $end_time ]; do
     job_count=$(jobs -rp | wc -l)
-    if [ "$job_count" -eq 0 ]; then
-        break
-    fi
-    echo "Waiting for $job_count jobs to complete..."
+    [ "$job_count" -eq 0 ] && break
     sleep 1
 done
-echo -e "All background jobs completed.\n"
+
+# Kill any remaining processes after timeout
+job_count=$(jobs -rp | wc -l)
+if [ "$job_count" -gt 0 ]; then
+    echo "Timeout reached. Killing $job_count remaining processes..."
+    kill $(jobs -rp) 2>/dev/null
+    wait $(jobs -rp) 2>/dev/null  # Wait for kills to complete
+    echo "Forced termination complete."
+fi
+
+echo -e "All processes handled.\n"
 
 # Process each JSON file
 for file in "$DATA_DIR"/*.json; do
