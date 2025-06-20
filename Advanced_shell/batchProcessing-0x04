@@ -46,19 +46,23 @@ fetch_pokemon_data() {
 
 # Fetch data for all Pokémon in parallel
 echo "Starting parallel data fetch..."
-pids=()
 for name in "${pokemons[@]}"; do
     fetch_pokemon_data "$name" &
-    pids+=($!)
     sleep 0.1  # Small delay to avoid rate limiting
 done
 
-# Wait for all background processes to complete
-echo -e "\nWaiting for all processes to finish..."
-for pid in "${pids[@]}"; do
-    wait "$pid"
+# Monitor and wait for all background jobs to complete
+echo -e "\nMonitoring background jobs..."
+while true; do
+    # Check running jobs
+    job_count=$(jobs -rp | wc -l)
+    if [ "$job_count" -eq 0 ]; then
+        break
+    fi
+    echo "Waiting for $job_count jobs to complete..."
+    sleep 1
 done
-echo -e "All processes completed.\n"
+echo -e "All background jobs completed.\n"
 
 # Process each JSON file
 for file in "$DATA_DIR"/*.json; do
